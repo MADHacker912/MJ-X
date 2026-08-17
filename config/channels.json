@@ -1,0 +1,28 @@
+{
+  "whitelist": {
+    "allowed_whatsapp_numbers": [],
+    "allowed_discord_user_ids": [],
+    "allowed_instagram_handles": [],
+    "respond_to_all": true,
+    "require_prefix": false,
+    "prefix": "!mj"
+  },
+  "whatsapp": {
+    "enabled": true,
+    "mode": "linked_device",
+    "auth_dir": "memory/whatsapp_auth",
+    "port": 3456,
+    "meta_phone_number_id": "",
+    "meta_access_token": "",
+    "meta_verify_token": "mj_secure_verify_token"
+  },
+  "discord": {
+    "enabled": false,
+    "bot_token": ""
+  },
+  "instagram": {
+    "enabled": false,
+    "mode": "graph_api",
+    "access_token": ""
+  }
+}

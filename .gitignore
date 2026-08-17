@@ -1,0 +1,101 @@
+# ==============================================================================
+# MJ-X (Mark-L) — .gitignore
+# Cross-Platform AI Assistant (Python / PyQt6 + Node.js Baileys Bridge)
+# ==============================================================================
+
+# --- Python Bytecode, Compilations & Optimizations ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+
+# --- Virtual Environments ---
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+bin/
+include/
+lib/
+lib64/
+
+# --- Node.js & Dependency Packages ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+package-lock.json.bak
+
+# --- Testing, Linting & Coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+
+# --- Build, Distribution & Packaging ---
+build/
+dist/
+eggs/
+*.egg-info/
+*.egg
+*.spec
+*.manifest
+
+# --- IDE, Editor & OS Artifacts ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# --- Logs & Runtime Output ---
+*.log
+logs/
+*.tmp
+*.bak
+*.pid
+
+# --- Secrets, API Keys & TLS Credentials ---
+.env
+.env.*
+*.env
+*.key
+*.pem
+secrets.*
+config/api_keys.json
+config/certs/
+
+# --- Personal Memory Stores, Snapshots & Auth ---
+memory/*.json
+!memory/skills.json
+memory/backups/
+memory/whatsapp_auth/
+memory/*.npz
+
+# --- User Media & Workspace Uploads ---
+Photos/
+documents/
+uploads/
+reminders/

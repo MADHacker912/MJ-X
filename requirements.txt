@@ -1,0 +1,61 @@
+# Desktop UI and live audio
+PyQt6
+sounddevice
+soundfile
+numpy
+pillow
+opencv-python
+mss
+qrcode[pil]
+
+# Gemini and internet access
+google-genai
+google-generativeai
+requests
+beautifulsoup4
+ddgs
+duckduckgo-search
+playwright
+
+# Desktop automation and system monitoring
+pyautogui
+pyperclip
+pygetwindow
+psutil
+pynvml
+send2trash
+
+# Documents, data, media, and YouTube
+PyPDF2
+pdfplumber
+python-docx
+python-pptx
+pandas
+openpyxl
+pydub
+youtube-transcript-api
+
+# Remote dashboard
+fastapi
+uvicorn[standard]
+cryptography
+python-multipart
+
+# Optional local speech-to-text and text-to-speech engines
+faster-whisper
+vosk
+edge-tts
+kokoro>=0.9; python_version < "3.13"
+miniaudio
+torch
+
+# Linux integration
+python-xlib; sys_platform == "linux"
+
+# Windows integration
+comtypes; sys_platform == "win32"
+pycaw; sys_platform == "win32"
+win10toast; sys_platform == "win32"
+pywinauto; sys_platform == "win32"
+pywin32; sys_platform == "win32"
+WMI; sys_platform == "win32"

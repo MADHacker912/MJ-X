@@ -1,0 +1,16 @@
+{
+  "friend_mode_enabled": true,
+  "default_language": "hinglish",
+  "honesty_level": 1.0,
+  "directness": 0.85,
+  "humour_level": 0.45,
+  "emoji_frequency": 0.2,
+  "challenge_assumptions": true,
+  "fake_praise_blocked": true,
+  "emotion_engine_enabled": true,
+  "avatar_expression_enabled": true,
+  "voice_emotion_enabled": true,
+  "memory_personalisation_enabled": true,
+  "maximum_slang_level": 0.55,
+  "serious_mode_auto_detection": true
+}
