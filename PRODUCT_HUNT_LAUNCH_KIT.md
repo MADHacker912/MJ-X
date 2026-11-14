@@ -74,7 +74,8 @@ What's the one feature you wish your desktop AI assistant had? I'd love your fee
 ## 6. Launch Status & Scheduling Record
 - **Submission Date:** November 14, 2026
 - **Status:** **Successfully Scheduled**
-- **Draft URL:** [https://www.producthunt.com/posts/new/I7CVDG5Y6O2KS7C52YHXR4LTI4DRUVE25G](https://www.producthunt.com/posts/new/I7CVDG5Y6O2KS7C52YHXR4LTI4DRUVE25G)
+- **Launch URL:** [https://www.producthunt.com/products/mj-x?launch=mj-x](https://www.producthunt.com/products/mj-x?launch=mj-x)
+- **Draft & Edit URL:** [https://www.producthunt.com/posts/mj-x/edit](https://www.producthunt.com/posts/mj-x/edit)
 - **Maker Account:** Saksham Gupta ([@saksham_gupta22](https://www.producthunt.com/@saksham_gupta22))
 - **Verified Role:** Maker (`I made this`)
 - **Tags Attached:** `Artificial Intelligence`, `Developer Tools`, `Productivity`
