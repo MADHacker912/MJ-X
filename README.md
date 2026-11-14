@@ -161,12 +161,20 @@ PYTHONPATH=. pytest tests/ -v
 
 ---
 
-## 👨‍💻 Author & Attribution
+## 👨‍💻 Author & Technical Skills
 
-Developed with passion by **Saksham Gupta**  
+Developed with passion and systems precision by **Saksham Gupta**  
 - **GitHub**: [@MADHacker912](https://github.com/MADHacker912)  
-- **Project**: [MJ-X / MJ Repository](https://github.com/MADHacker912/MJ-X)  
-- **Ecosystem**: Built for creators, engineers, and researchers seeking a truly autonomous AI operating companion.
+- **LinkedIn**: [Saksham Gupta](https://www.linkedin.com/in/saksham-gupta-9125obito/)  
+- **Product Hunt**: [@saksham_gupta22](https://www.producthunt.com/@saksham_gupta22)  
+- **Portfolio**: [sakshamgupta.online](https://sakshamgupta.online)
+
+### 🚀 Core Engineering Competencies & Stack:
+- **Multimodal AI & Autonomous Agents**: Bidirectional duplex voice streaming, Google Gemini Live WebSocket API, low-latency agent harnesses, tool execution engines, cognitive indexed memory (`SQLite WAL + FTS5` semantic search).
+- **Full-Stack Systems & Architecture**: Python (AsyncIO, FastAPI, PySide6/PyQt6 Cyberpunk HUD), Linux systems programming, IPC/DBus protocols, systemd automation, high-concurrency background services.
+- **Offensive Security & Reverse Engineering**: Binary analysis, AST-level static analysis, credential vaulting & OS sandboxing, APK/Electron reverse engineering, OWASP compliance.
+- **Frontend & Visual Engineering**: Anti-AI slop design standards, custom hardware telemetry HUDs, TypeScript, Three.js / WebGL, GSAP motion systems.
+- **Mobile & Cross-Platform**: Android native (Kotlin, Jetpack Compose), background device telemetry synchronization.
 
 ---
 
