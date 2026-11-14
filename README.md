@@ -2,8 +2,10 @@
 ### Autonomous Multimodal AI Ecosystem, Real-Time Bidirectional Voice & Cognitive Desktop Engine
 
 > **Created & Developed by [Saksham Gupta](https://github.com/MADHacker912)** ([@MADHacker912](https://github.com/MADHacker912))  
+> 🚀 **Official Product Hunt Maker:** [@saksham_gupta22](https://www.producthunt.com/@saksham_gupta22)  
 > *Production-Grade Personal Artificial Intelligence Assistant & Autonomous Operating System Companion*
 
+[![Product Hunt Maker](https://img.shields.io/badge/Product_Hunt-Maker_@saksham__gupta22-FF6154?style=for-the-badge&logo=producthunt&logoColor=white)](https://www.producthunt.com/@saksham_gupta22)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Gemini Live](https://img.shields.io/badge/Google%20Gemini-Live%20Multimodal%20WebSocket%20API-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 [![PyQt6](https://img.shields.io/badge/GUI-PyQt6%20Cyberpunk%20HUD-41CD52?style=for-the-badge&logo=qt&logoColor=white)](https://riverbankcomputing.com/software/pyqt/)
@@ -19,6 +21,7 @@
   </a>
   <h3><a href="https://www.producthunt.com/products/mj-x?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed" target="_blank" rel="noopener">MJ-X on Product Hunt</a></h3>
   <p><i>Real-time duplex voice, memory &amp; desktop co-pilot</i></p>
+  <p><b>Product Hunt Maker:</b> <a href="https://www.producthunt.com/@saksham_gupta22" target="_blank" rel="noopener"><b>Saksham Gupta (@saksham_gupta22)</b></a></p>
   <a href="https://www.producthunt.com/products/mj-x?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed" target="_blank" rel="noopener">
     <img src="https://img.shields.io/badge/Product_Hunt-Check_it_out_→-FF6154?style=for-the-badge&logo=producthunt&logoColor=white" alt="Check it out on Product Hunt" />
   </a>
@@ -179,9 +182,9 @@ PYTHONPATH=. pytest tests/ -v
 ## 👨‍💻 Author & Technical Skills
 
 Developed with passion and systems precision by **Saksham Gupta**  
+- **Product Hunt Maker**: [@saksham_gupta22](https://www.producthunt.com/@saksham_gupta22) *(Hunter & Verified Maker of MJ-X)*  
 - **GitHub**: [@MADHacker912](https://github.com/MADHacker912)  
 - **LinkedIn**: [Saksham Gupta](https://www.linkedin.com/in/saksham-gupta-9125obito/)  
-- **Product Hunt**: [@saksham_gupta22](https://www.producthunt.com/@saksham_gupta22)  
 - **Portfolio**: [sakshamgupta.online](https://sakshamgupta.online)
 
 ### 🚀 Core Engineering Competencies & Stack:
