@@ -24,6 +24,13 @@ def _get_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
     path = _get_base_dir() / "config" / "api_keys.json"
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
@@ -457,10 +464,22 @@ def desktop_control(
         elif action == "stats":
             return get_desktop_stats()
 
-        elif action == "task" or task:
+        elif action in ("task", "ghost", "autonomous") or task:
             actual_task = task or params.get("description", "")
             if not actual_task:
                 return "Please describe what you want to do on the desktop."
+
+            try:
+                from mjx.agent import DesktopAgentController
+                from mjx.security.permissions import PermissionManager
+                controller = DesktopAgentController(permission_mgr=PermissionManager())
+                report = controller.run_goal(actual_task)
+                if report.success:
+                    return f"[GHOST AGENT] {report.message} (Executed {report.steps_executed} steps)."
+                elif "Safety guard veto" in report.message or "blocked" in report.message:
+                    return f"[GHOST AGENT] {report.message}"
+            except Exception as e:
+                print(f"[Desktop] GHOST agent fallback ({e})")
 
             print(f"[Desktop] Asking Gemini: {actual_task}")
             if player:

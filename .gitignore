@@ -93,6 +93,10 @@ memory/*.json
 memory/backups/
 memory/whatsapp_auth/
 memory/*.npz
+data/*.db*
+data/backups/
+.checkpoints/
+config/.vault_manifest.json
 
 # --- User Media & Workspace Uploads ---
 Photos/

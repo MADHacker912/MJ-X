@@ -58,6 +58,13 @@ _YT_VIDEO_FILTER = "EgIQAQ%3D%3D"
 
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 

@@ -3900,11 +3900,18 @@ class MainWindow(QMainWindow):
         if self._customize_overlay:
             self._customize_overlay.hide()
         cw = self.centralWidget()
+        try:
+            from mjx.security import get_api_key
+            current_key = get_api_key("gemini_api_key")
+        except Exception:
+            current_key = cfg.get("gemini_api_key", "")
+            if current_key == "USE_OS_VAULT":
+                current_key = ""
         ov = CustomizeOverlay(
             cfg.get("assistant_name", "MJ") or "MJ",
             cfg.get("user_name", ""),
             cfg.get("ui_color", "") or DEFAULT_UI_COLOR,
-            cfg.get("gemini_api_key", ""),
+            current_key,
             cfg.get("tts_voice_gender", "female"),
             parent=cw,
         )
@@ -3966,7 +3973,16 @@ class MainWindow(QMainWindow):
             data["assistant_name"] = self._assistant_name
             data["user_name"] = user_name.strip()
             if api_key:
-                data["gemini_api_key"] = api_key.strip()
+                clean_key = api_key.strip()
+                try:
+                    from mjx.security import set_api_key, VAULT_MARKER
+                    if set_api_key("gemini_api_key", clean_key):
+                        data["gemini_api_key"] = VAULT_MARKER
+                    else:
+                        data["gemini_api_key"] = clean_key
+                except Exception as exc:
+                    print(f"[UI] ⚠️ Vault update failed ({exc})")
+                    data["gemini_api_key"] = clean_key
             if ui_color:
                 data["ui_color"] = ui_color.strip().lower()
             data["tts_voice_gender"] = (tts_voice_gender or "male").strip().lower()
@@ -4069,7 +4085,12 @@ class MainWindow(QMainWindow):
         if not API_FILE.exists(): return False
         try:
             d = json.loads(API_FILE.read_text(encoding="utf-8"))
-            return bool(d.get("gemini_api_key")) and bool(d.get("os_system"))
+            try:
+                from mjx.security import has_api_key
+                has_key = has_api_key("gemini_api_key")
+            except Exception:
+                has_key = bool(d.get("gemini_api_key"))
+            return has_key and bool(d.get("os_system"))
         except Exception:
             return False
 
@@ -4088,8 +4109,16 @@ class MainWindow(QMainWindow):
 
     def _on_setup_done(self, key: str, os_name: str):
         os.makedirs(CONFIG_DIR, exist_ok=True)
+        key_marker = key
+        try:
+            from mjx.security import set_api_key, VAULT_MARKER
+            if set_api_key("gemini_api_key", key):
+                key_marker = VAULT_MARKER
+        except Exception as exc:
+            print(f"[UI] ⚠️ Vault store error ({exc}), saving locally...")
+
         config = _read_full_config()
-        config.update({"gemini_api_key": key, "os_system": os_name})
+        config.update({"gemini_api_key": key_marker, "os_system": os_name})
         API_FILE.write_text(
             json.dumps(config, indent=4),
             encoding="utf-8",

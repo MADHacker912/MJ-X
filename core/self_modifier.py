@@ -121,17 +121,36 @@ def self_edit_file(
     target_relative_path: str,
     new_content: str,
     bypass_risk: bool = False,
+    perm_mgr: Optional[Any] = None,
 ) -> str:
     """
     Safely edits an MJ codebase file with Neural Brain safety evaluation,
     AST validation, sandboxed execution check, and automatic learning.
+    Strictly gated behind PermissionCategory.ADMIN_OPERATION.
     """
+    # 1. Path Safety Check: Must stay strictly within BASE_DIR
+    try:
+        target = (BASE_DIR / target_relative_path).resolve()
+        if not target.is_relative_to(BASE_DIR.resolve()) or target == BASE_DIR.resolve():
+            return f"Safety Violation: Cannot edit file outside workspace: {target_relative_path}"
+    except Exception:
+        return f"Safety Violation: Invalid target path: {target_relative_path}"
+
+    # 2. Permission Check: Strictly gated behind ADMIN_OPERATION
+    try:
+        from mjx.security.permissions import check_permission, PermissionCategory
+        checker = perm_mgr.check if perm_mgr else check_permission
+        if not checker(
+            PermissionCategory.ADMIN_OPERATION,
+            action="self_edit_file",
+            target=str(target_relative_path),
+            reason="Codebase self-modification attempt",
+        ):
+            return "Security Error: Codebase self-modification rejected by project security policy (requires ADMIN_OPERATION grant)."
+    except Exception as e:
+        return f"Security Error: Permission check failed closed ({e}). Modification aborted."
+
     brain = get_neural_brain()
-    target = (BASE_DIR / target_relative_path).resolve()
-    
-    # 1. Safety Check: Must stay within BASE_DIR
-    if BASE_DIR.resolve() not in target.parents and target != BASE_DIR.resolve():
-        return f"Safety Violation: Cannot edit file outside workspace: {target_relative_path}"
 
     # 2. Neural Brain Risk Assessment
     risk_score = brain.predict_risk(new_content, target_relative_path)

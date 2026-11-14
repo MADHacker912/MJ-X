@@ -1,0 +1,456 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0B0E14">
+
+    <!-- Top Claymorphic Nav Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="68dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="#121824">
+
+        <ImageView
+            android:id="@+id/navLogo"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@drawable/mj_logo"
+            android:contentDescription="MJ-X Logo" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MJ-X (Mark-L)"
+                android:textColor="#E6EDF3"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/modelNameText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="gemini-2.0-flash"
+                android:textColor="#8B949E"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Live OpenRouter Credit Pill -->
+        <LinearLayout
+            android:id="@+id/creditBadgeLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/clay_badge_credit"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ "
+                android:textColor="#10B981"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/creditText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="API: Live"
+                android:textColor="#10B981"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Main Dynamic Tab Container -->
+    <FrameLayout
+        android:id="@+id/tabContentFrame"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- ================= TAB 1: FRONT / HUD ================= -->
+        <ScrollView
+            android:id="@+id/tabFrontView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:gravity="center_horizontal">
+
+                <!-- Claymorphic Central Glowing Avatar -->
+                <FrameLayout
+                    android:layout_width="160dp"
+                    android:layout_height="160dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="16dp">
+
+                    <View
+                        android:id="@+id/avatarGlowOrb"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/clay_avatar_orb" />
+
+                    <ImageView
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/obito_logo"
+                        android:contentDescription="Avatar Core" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/agentStatusText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="24/7 AUTONOMOUS PHONE AGENT ONLINE"
+                    android:textColor="#00F0FF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05"
+                    android:layout_marginBottom="14dp" />
+
+                <!-- Voice / Waveform Activity Indicator -->
+                <TextView
+                    android:id="@+id/waveformText"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:background="@drawable/clay_input_bg"
+                    android:textColor="#A855F7"
+                    android:gravity="center"
+                    android:text="|||| |||||||||| |||||| ||||||||||"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Big Clay Voice Action Button -->
+                <Button
+                    android:id="@+id/btnVoiceListen"
+                    android:layout_width="match_parent"
+                    android:layout_height="58dp"
+                    android:text="🎙️ TAP TO SPEAK / COMMAND"
+                    android:background="@drawable/clay_button_primary"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="18dp" />
+
+                <!-- Live Transcript & Action Feed -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/clay_card_bg"
+                    android:padding="16dp"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚡ LIVE AUTONOMOUS ACTIVITY FEED"
+                        android:textColor="#8B949E"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/transcriptLogText"
+                        android:layout_width="match_parent"
+                        android:layout_height="130dp"
+                        android:textColor="#C9D1D9"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="3dp"
+                        android:scrollbars="vertical"
+                        android:text="• Agent initialized 24/7 standalone mode\n• Accessibility service active\n• Listening for voice or notification events..." />
+                </LinearLayout>
+
+                <!-- Quick Action Pills Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2">
+
+                    <Button
+                        android:id="@+id/btnReadNotifications"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:text="🔔 Notifications"
+                        android:background="@drawable/clay_input_bg"
+                        android:textColor="#58A6FF"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnScanScreen"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="👁️ Scan Screen"
+                        android:background="@drawable/clay_input_bg"
+                        android:textColor="#A855F7"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ================= TAB 2: SETTINGS ================= -->
+        <ScrollView
+            android:id="@+id/tabSettingsView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚙️ BRAIN &amp; API CONFIGURATION"
+                    android:textColor="#00F0FF"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- OpenRouter API Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/clay_card_bg"
+                    android:padding="16dp"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OpenRouter API Key:"
+                        android:textColor="#E6EDF3"
+                        android:textSize="14sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <EditText
+                        android:id="@+id/apiKeyInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/clay_input_bg"
+                        android:hint="sk-or-v1-..."
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#484F58"
+                        android:singleLine="true"
+                        android:inputType="textPassword"
+                        android:layout_marginBottom="12dp" />
+
+                    <Button
+                        android:id="@+id/btnSaveApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="💾 Save &amp; Check Live Credits"
+                        android:background="@drawable/clay_button_primary"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Model Selector Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/clay_card_bg"
+                    android:padding="16dp"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Select Autonomous AI Model:"
+                        android:textColor="#E6EDF3"
+                        android:textSize="14sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <Spinner
+                        android:id="@+id/modelSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/clay_input_bg"
+                        android:layout_marginBottom="6dp" />
+                </LinearLayout>
+
+                <!-- System Permissions Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/clay_card_bg"
+                    android:padding="16dp"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Phone Autonomy Permissions:"
+                        android:textColor="#E6EDF3"
+                        android:textSize="14sp"
+                        android:layout_marginBottom="12dp" />
+
+                    <Button
+                        android:id="@+id/btnPermAccessibility"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:text="Accessibility Service (Auto-Touch)"
+                        android:background="@drawable/clay_input_bg"
+                        android:textColor="#10B981"
+                        android:layout_marginBottom="8dp" />
+
+                    <Button
+                        android:id="@+id/btnPermOverlay"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:text="Draw Over Other Apps (Overlay HUD)"
+                        android:background="@drawable/clay_input_bg"
+                        android:textColor="#10B981"
+                        android:layout_marginBottom="8dp" />
+
+                    <Button
+                        android:id="@+id/btnPermNotifications"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:text="Notification Listener (Incoming Calls/Msgs)"
+                        android:background="@drawable/clay_input_bg"
+                        android:textColor="#10B981" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ================= TAB 3: OVERLAY SETTINGS ================= -->
+        <ScrollView
+            android:id="@+id/tabOverlayView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔮 CLAYMORPHIC OVERLAY HUD SETTINGS"
+                    android:textColor="#A855F7"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="16dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/clay_card_bg"
+                    android:padding="16dp"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Floating HUD Behavior:"
+                        android:textColor="#E6EDF3"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="• Tap the floating pill to open quick menu.\n• Tap 'Hide' to collapse to the edge.\n• Drag anywhere on screen to reposition."
+                        android:textColor="#8B949E"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="3dp"
+                        android:layout_marginBottom="16dp" />
+
+                    <Button
+                        android:id="@+id/btnToggleFloatingHUD"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="✨ Start Floating Overlay HUD"
+                        android:background="@drawable/clay_button_primary"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
+    </FrameLayout>
+
+    <!-- Bottom Claymorphic Navigation Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:background="#121824"
+        android:gravity="center"
+        android:weightSum="3">
+
+        <Button
+            android:id="@+id/navTabFront"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="🚀 HUD"
+            android:textColor="#00F0FF"
+            android:background="?android:attr/selectableItemBackground"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/navTabSettings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="⚙️ Settings"
+            android:textColor="#8B949E"
+            android:background="?android:attr/selectableItemBackground"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/navTabOverlay"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="🔮 Overlay"
+            android:textColor="#8B949E"
+            android:background="?android:attr/selectableItemBackground"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+</LinearLayout>

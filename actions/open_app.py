@@ -78,23 +78,19 @@ def _normalize(raw: str) -> str:
     return raw  
 
 def _launch_windows(app_name: str) -> bool:
-
-    if shutil.which(app_name) or shutil.which(app_name.split(".")[0]):
+    from mjx.security.process_manager import safe_spawn
+    binary = shutil.which(app_name) or shutil.which(app_name.split(".")[0])
+    if binary:
         try:
-            subprocess.Popen(
-                app_name,
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            safe_spawn([binary])
             time.sleep(1.5)
             return True
         except Exception as e:
-            print(f"[open_app] subprocess failed: {e}")
+            print(f"[open_app] safe_spawn failed: {e}")
 
     if ":" in app_name:
         try:
-            subprocess.Popen(f"start {app_name}", shell=True)
+            safe_spawn(["cmd.exe", "/c", "start", "", app_name])
             time.sleep(1.0)
             return True
         except Exception:
@@ -174,13 +170,14 @@ _LINUX_TERMINAL_FALLBACKS = [
 ]
 
 def _launch_linux(app_name: str) -> bool:
+    from mjx.security.process_manager import safe_spawn, safe_run
 
     # terminal emulators: try common ones in order
     if app_name in ("x-terminal-emulator", "gnome-terminal", "terminal"):
         for term in _LINUX_TERMINAL_FALLBACKS:
             if shutil.which(term):
                 try:
-                    subprocess.Popen([term], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    safe_spawn([term])
                     time.sleep(1.0)
                     return True
                 except Exception:
@@ -194,22 +191,16 @@ def _launch_linux(app_name: str) -> bool:
     )
     if binary:
         try:
-            subprocess.Popen(
-                [binary],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+            safe_spawn([binary])
             time.sleep(1.0)
             return True
         except Exception:
             pass
 
     try:
-        subprocess.run(
-            ["xdg-open", app_name],
-            capture_output=True, timeout=5
-        )
-        return True
+        res = safe_run(["xdg-open", app_name], timeout=5.0)
+        if res.returncode == 0:
+            return True
     except Exception:
         pass
 
@@ -219,10 +210,7 @@ def _launch_linux(app_name: str) -> bool:
         app_name.lower().replace(" ", ""),
     ]:
         try:
-            result = subprocess.run(
-                ["gtk-launch", desktop_name],
-                capture_output=True, timeout=5
-            )
+            result = safe_run(["gtk-launch", desktop_name], timeout=5.0)
             if result.returncode == 0:
                 return True
         except Exception:

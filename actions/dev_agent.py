@@ -20,6 +20,13 @@ MODEL_PLANNER    = "gemini-3.6-flash"
 MODEL_WRITER     = "gemini-3.6-flash"
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 
@@ -238,12 +245,14 @@ def _install_dependencies(dependencies: list[str], project_dir: Path) -> str:
     if not dependencies:
         return "No external dependencies."
 
+    from mjx.security.process_manager import safe_run
+
     to_install = []
     for dep in dependencies:
         pkg_name = re.split(r"[>=<!]", dep)[0].strip()
-        result = subprocess.run(
+        result = safe_run(
             [sys.executable, "-m", "pip", "show", pkg_name],
-            capture_output=True, text=True
+            timeout=10.0
         )
         if result.returncode != 0:
             to_install.append(dep)
@@ -255,21 +264,18 @@ def _install_dependencies(dependencies: list[str], project_dir: Path) -> str:
 
     print(f"[DevAgent] 📦 Installing: {to_install}")
     try:
-        result = subprocess.run(
+        result = safe_run(
             [sys.executable, "-m", "pip", "install"] + to_install,
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=120, cwd=str(project_dir)
+            timeout=120.0, cwd=str(project_dir)
         )
         if result.returncode == 0:
             return f"Installed: {', '.join(to_install)}"
         return f"Install warning (non-fatal): {result.stderr[:200]}"
-    except subprocess.TimeoutExpired:
-        return "Dependency install timed out (non-fatal)."
     except Exception as e:
         return f"Install error (non-fatal): {e}"
 
 def _open_vscode(project_dir: Path) -> bool:
+    from mjx.security.process_manager import safe_spawn
     vscode_candidates = [
         "code",
         rf"C:\Users\{Path.home().name}\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd",
@@ -277,12 +283,7 @@ def _open_vscode(project_dir: Path) -> bool:
     ]
     for cmd in vscode_candidates:
         try:
-            subprocess.Popen(
-                [cmd, str(project_dir)],
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+            safe_spawn([cmd, str(project_dir)])
             time.sleep(1.5)
             print(f"[DevAgent] 💻 VSCode opened: {project_dir}")
             return True
@@ -292,18 +293,20 @@ def _open_vscode(project_dir: Path) -> bool:
 
 def _run_project(run_command: str, project_dir: Path, timeout: int = 30) -> str:
     print(f"[DevAgent] 🚀 Running: {run_command}")
+    from mjx.security.process_manager import safe_run
     try:
         parts = run_command.split()
-        if parts[0].lower() == "python":
+        if parts and parts[0].lower() == "python":
             parts[0] = sys.executable
 
-        result = subprocess.run(
+        result = safe_run(
             parts,
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=timeout,
+            timeout=float(timeout),
             cwd=str(project_dir)
         )
+
+        if result.timed_out:
+            return f"Timed out after {timeout}s — long-running app (server/GUI) is likely working."
 
         stdout = result.stdout.strip()
         stderr = result.stderr.strip()
@@ -316,10 +319,6 @@ def _run_project(run_command: str, project_dir: Path, timeout: int = 30) -> str:
 
         return "\n\n".join(combined_parts) if combined_parts else "Ran with no output."
 
-    except subprocess.TimeoutExpired:
-        return f"Timed out after {timeout}s — long-running app (server/GUI) is likely working."
-    except FileNotFoundError as e:
-        return f"Command not found: {e}"
     except Exception as e:
         return f"Run error: {e}"
 

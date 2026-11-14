@@ -1,19 +1,8 @@
 import platform as _platform
 import subprocess as _subprocess
 
-# ── Nuclear: force CREATE_NO_WINDOW on EVERY subprocess call on Windows ───────
-# This patches Popen itself, so no per-file flag is needed anywhere.
-if _platform.system() == "Windows":
-    _OrigPopen = _subprocess.Popen
-
-    class _Popen(_OrigPopen):
-        def __init__(self, args, **kw):
-            kw["creationflags"] = kw.get("creationflags", 0) | _subprocess.CREATE_NO_WINDOW
-            kw.pop("startupinfo", None)   # drop any stale/shared STARTUPINFO
-            super().__init__(args, **kw)
-
-    _subprocess.Popen = _Popen
-# ─────────────────────────────────────────────────────────────────────────────
+# Subprocess execution is safely managed via mjx.security.process_manager
+# without dangerous global monkey-patching of subprocess.Popen.
 
 # GNOME's Xwayland may store its MIT-MAGIC-COOKIE with an empty display
 # number (meaning "any display").  The old python3-xlib used by PyAutoGUI
@@ -79,6 +68,7 @@ from memory.memory_manager import (
     save_session_summary, pop_last_session, searchMemory,
     format_relevant_memory_for_prompt, learnFromConversation, cleanupMemory,
     summarizeConversation,
+    start_conversation, add_conversation_message, update_conversation_summary,
 )
 from emotion import EmotionEngine, SUPPORTED_EMOTIONS
 from emotion.voice import apply_pcm16_settings
@@ -108,6 +98,7 @@ from actions.web_search        import web_search as web_search_action
 from actions.computer_control  import computer_control
 from actions.game_updater      import game_updater
 from actions.autopilot         import autopilot as autopilot_action
+from actions.phone_controller  import phone_controller
 from actions.openclaw_integration import openclaw_task
 from actions.system_monitor    import SystemMonitor, get_system_status
 from actions.proactive         import ProactiveEngine
@@ -125,6 +116,22 @@ from actions.screen_processor  import (
 )
 from memory.config_manager     import (
     get_brief_enabled, get_emotion_settings, get_voice_interruption_enabled,
+)
+from mjx.security import is_emergency_stopped
+from mjx.security.permissions import PermissionManager
+from mjx.intelligence.brain import IntelligenceBrain
+from mjx.agent import DesktopAgentController
+from mjx.skills import SkillRegistry, SkillExecutor
+from mjx.aurora import AuroraPairingManager, AuroraSyncProtocol
+from mjx.evolution import EvolutionMetricsCollector
+from memory.memory_manager import get_repository
+from mjx.live import (
+    LiveSessionManager,
+    ConnectionState,
+    ErrorCategory,
+    LiveErrorClassifier,
+    LiveSessionRecoveryRequired,
+    ReconnectPolicy,
 )
 
 
@@ -152,11 +159,21 @@ def _restart_command() -> list[str]:
     return [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]]
 
 
-def _barge_in_threshold(ambient_rms: float, output_rms: float) -> float:
-    """Adaptive microphone threshold that rejects ambient noise and speaker echo."""
-    return max(650.0, ambient_rms * 3.2, output_rms * 0.22)
+def _barge_in_threshold(ambient_rms: float, output_rms: float, sensitivity: float = 0.65) -> float:
+    """Adaptive microphone threshold that rejects ambient noise and speaker echo with dynamic sensitivity."""
+    amb_mult = max(2.0, 4.0 - (sensitivity * 1.5))
+    echo_mult = max(0.15, 0.30 - (sensitivity * 0.12))
+    base_floor = max(500.0, 800.0 - (sensitivity * 300.0))
+    return max(base_floor, ambient_rms * amb_mult, output_rms * echo_mult)
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception as exc:
+        print(f"[MJ] ⚠️ Vault key read fallback ({exc})")
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 
@@ -438,22 +455,6 @@ TOOL_DECLARATIONS = [
                 "task":   {"type": "STRING", "description": "Natural language desktop task"},
             },
             "required": ["action"]
-        }
-    },
-    {
-        "name": "self_edit",
-        "description": (
-            "Safely edit a workspace file directly. Use only when the user explicitly requests MJ to modify its own code. "
-            "Write the full file content in the 'content' field. The file must reside inside the MJ workspace."
-        ),
-        "parameters": {
-            "type": "OBJECT",
-            "properties": {
-                "file_path": {"type": "STRING", "description": "Workspace-relative or absolute path to the file to edit."},
-                "content":   {"type": "STRING", "description": "The exact file contents to write."},
-                "summary":   {"type": "STRING", "description": "Optional short summary of the change."},
-            },
-            "required": ["file_path", "content"]
         }
     },
     {
@@ -884,6 +885,38 @@ TOOL_DECLARATIONS = [
         },
     },
     {
+        "name": "phone_control",
+        "description": (
+            "Control connected Android phone autonomously. Open apps, tap buttons/text, type text, "
+            "place phone calls, press home/back, or read the phone's current screen UI hierarchy. "
+            "Use when user asks to control phone, open WhatsApp/YouTube on phone, call someone, etc."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "open_app | click | type | call | home | back | recents | notifications | read_screen"
+                },
+                "app": {
+                    "type": "STRING",
+                    "description": "App name or package (e.g. 'whatsapp', 'youtube', 'settings', 'camera', 'spotify')"
+                },
+                "text": {
+                    "type": "STRING",
+                    "description": "Text to type or text of the button/label to tap"
+                },
+                "number": {
+                    "type": "STRING",
+                    "description": "Phone number for phone calls"
+                },
+                "x": {"type": "NUMBER", "description": "Screen X coordinate for tap"},
+                "y": {"type": "NUMBER", "description": "Screen Y coordinate for tap"}
+            },
+            "required": ["action"]
+        }
+    },
+    {
         "name": "set_emotion",
         "description": (
             "Silently set MJ's simulated response emotion after contextually understanding the user's turn. "
@@ -899,6 +932,22 @@ TOOL_DECLARATIONS = [
                 "confidence": {"type": "NUMBER", "description": "Classification confidence from 0 to 1"},
             },
             "required": ["emotion", "intensity", "reason"],
+        },
+    },
+    {
+        "name": "runtime_metrics",
+        "description": "Returns execution reliability metrics, success rates, and tool latencies.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {},
+        },
+    },
+    {
+        "name": "aurora_status",
+        "description": "Returns companion mobile synchronization and pairing status.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {},
         },
     },
 ]
@@ -936,6 +985,7 @@ class MJLive:
         self._proactive        = ProactiveEngine()
         self._last_user_speech = time.monotonic()  # updated on every user utterance
         self._session_log: list[str] = []          # conversation turns for end-of-session summary
+        self._conversation_id: str = start_conversation("Live Voice Session")
         self._recent_learned: list[str] = []       # prevents text/transcript double-learning
         self._session_compressing = False
         self._restart_requested = False
@@ -953,6 +1003,38 @@ class MJLive:
         self._sleep_inhibitor.start_inhibit()
         self._auto_learner = AutonomousLearner()
         self._auto_learner.start()
+        self.permission_mgr = PermissionManager()
+        self.memory_repo = get_repository()
+        self.brain = IntelligenceBrain(memory_repo=self.memory_repo)
+        self.desktop_agent = DesktopAgentController(permission_mgr=self.permission_mgr)
+        self.skill_registry = SkillRegistry()
+        self.skill_executor = SkillExecutor(permission_mgr=self.permission_mgr)
+        self.aurora_pairing = AuroraPairingManager()
+        self.aurora_sync = AuroraSyncProtocol()
+        self.metrics = EvolutionMetricsCollector()
+        self._session_stop_event = asyncio.Event()
+        self._session_stop_event.set()
+        self._app_tasks: list[asyncio.Task] = []
+        self.session_mgr = LiveSessionManager(
+            on_state_change=self._on_connection_state_change,
+            on_log=self._on_live_session_log,
+        )
+
+    def _on_connection_state_change(self, state: ConnectionState, reason: str) -> None:
+        if state == ConnectionState.CONNECTED:
+            self.ui.set_state("LISTENING")
+            if self._dashboard:
+                asyncio.create_task(self._dashboard.broadcast({"type": "status", "state": "active"}))
+        elif state == ConnectionState.CONNECTING:
+            self.ui.set_state("THINKING")
+        elif state in (ConnectionState.RECONNECTING, ConnectionState.DISCONNECTED, ConnectionState.SUSPENDED):
+            self.ui.set_state("SLEEPING")
+            if self._dashboard:
+                asyncio.create_task(self._dashboard.broadcast({"type": "status", "state": "sleeping"}))
+
+    def _on_live_session_log(self, msg: str) -> None:
+        if self.ui:
+            self.ui.write_log(f"SYS: {msg}")
 
     def _make_remote_key(self):
         """Called from Qt main thread when user presses Remote Control."""
@@ -981,6 +1063,7 @@ class MJLive:
             print("[MJ] ⚠️ Cannot send text — session not connected.")
             return
         self.ui.write_log(f"You: {text}")
+        add_conversation_message(self._conversation_id, "user", text)
         self.ui.set_state("THINKING")
         await self._analyse_emotion(text, allow_ai=False)
         personality_context = await self._analyse_personality(text, allow_ai=True)
@@ -988,12 +1071,30 @@ class MJLive:
             asyncio.to_thread(format_relevant_memory_for_prompt, text, 12),
             self._learn_user_message(text),
         )
-        emotion_context = self.emotion.getPromptContext()
+        emotion_context = self.emotion.getPromptContext(text)
         personality_context.plan.memory_to_use = re.findall(
             r"(?m)^-\s+([^:]+):", memory_context or ""
         )[:12]
         personality_prompt = self.personality.prompt_context(personality_context)
         contexts = [part for part in (memory_context, personality_prompt, emotion_context) if part]
+
+        # OMNIBRAIN Intent & Context processing
+        try:
+            brain_out = self.brain.process_message(
+                text,
+                conversation_id=self._conversation_id,
+                current_emotion=self.emotion.getEmotion(),
+                personality_mode="casual_friend",
+            )
+            if brain_out.active_plan:
+                plan_desc = f"[ACTIVE TASK PLAN]\nGoal: {brain_out.active_plan.goal}"
+                if brain_out.active_plan.current_step:
+                    plan_desc += f"\nCurrent Step: {brain_out.active_plan.current_step.description}"
+                contexts.append(plan_desc)
+                self.ui.write_log(f"Plan: {brain_out.active_plan.goal} ({len(brain_out.active_plan.steps)} steps)")
+        except Exception as exc:
+            print(f"[Brain] ⚠️ Processing exception ({exc})")
+
         memory_count = max(0, memory_context.count("\n- ")) if memory_context else 0
         print(f"[Personality] memories_used={memory_count}")
         context_text = "\n\n".join(contexts)
@@ -1281,6 +1382,7 @@ class MJLive:
         )
 
     async def _execute_tool(self, fc) -> types.FunctionResponse:
+        _tool_start_t = time.monotonic()
         name = fc.name
         args = dict(fc.args or {})
 
@@ -1432,18 +1534,8 @@ class MJLive:
                 r = await loop.run_in_executor(None, lambda: take_photo(player=self.ui))
                 result = r or "Photo clicked."
 
-            elif name == "self_edit":
-                file_path = str(args.get("file_path", "")).strip()
-                content = args.get("content", "")
-                if not file_path:
-                    result = "No file_path provided."
-                elif content is None:
-                    result = "No content provided."
-                else:
-                    result = await loop.run_in_executor(
-                        None,
-                        lambda: self_edit_file(target_relative_path=file_path, new_content=content)
-                    )
+            elif name in ("self_edit", "self_edit_file"):
+                result = "Security Error: Autonomous codebase self-modification is disabled by project security policy."
 
             elif name == "neural_status":
                 brain = get_neural_brain()
@@ -1538,6 +1630,10 @@ class MJLive:
                 r = await loop.run_in_executor(None, lambda: autopilot_action(parameters=args, player=self.ui, speak=self.speak))
                 result = r or "Autopilot finished."
 
+            elif name == "phone_control":
+                r = await loop.run_in_executor(None, lambda: phone_controller(parameters=args, player=self.ui))
+                result = r or "Phone command dispatched."
+
             elif name == "system_status":
                 r = await loop.run_in_executor(None, get_system_status)
                 result = str(r)
@@ -1614,6 +1710,23 @@ class MJLive:
                     asyncio.create_task(_do_restart())
                     result = "Restart initiated."
 
+            elif self.skill_registry and self.skill_registry.get_skill(name):
+                manifest = self.skill_registry.get_skill(name)
+                res = self.skill_executor.execute_skill(manifest, args)
+                result = res.output if res.success else f"Skill error: {res.error}"
+
+            elif name == "runtime_metrics":
+                result = json.dumps({
+                    "success_rate": self.metrics.get_success_rate(),
+                    "avg_duration_ms": self.metrics.get_average_duration_ms(),
+                }, indent=2)
+
+            elif name == "aurora_status":
+                result = json.dumps({
+                    "active_sessions": len(self.aurora_pairing._sessions),
+                    "authenticated_devices": len(self.aurora_pairing._authenticated_tokens),
+                }, indent=2)
+
             else:
                 result = f"Unknown tool: {name}"
 
@@ -1621,6 +1734,17 @@ class MJLive:
             result = f"Tool '{name}' failed: {e}"
             traceback.print_exc()
             self.speak_error(name, e)
+
+        # Evolution metrics recording
+        _elapsed_ms = (time.monotonic() - _tool_start_t) * 1000.0
+        _ok = not str(result).startswith("Tool ") and "failed" not in str(result).lower() and "error" not in str(result).lower()
+        if hasattr(self, "metrics") and self.metrics:
+            self.metrics.record_sample(
+                name,
+                duration_ms=_elapsed_ms,
+                success=_ok,
+                failure_reason=None if _ok else str(result)[:100],
+            )
 
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
@@ -1632,14 +1756,26 @@ class MJLive:
         )
 
     async def _send_realtime(self):
-        while True:
-            msg = await self.out_queue.get()
-            # Native-audio models need the PCM sample rate in the MIME type.
-            # Bare ``audio/pcm`` can leave VAD receiving undecodable frames even
-            # though both the microphone and websocket appear to be healthy.
-            await self.session.send_realtime_input(
-                audio=types.Blob(data=msg, mime_type=INPUT_AUDIO_MIME)
-            )
+        try:
+            while not self._session_stop_event.is_set():
+                try:
+                    msg = await asyncio.wait_for(self.out_queue.get(), timeout=0.2)
+                except asyncio.TimeoutError:
+                    continue
+                if self._session_stop_event.is_set() or not self.session:
+                    break
+                await self.session.send_realtime_input(
+                    audio=types.Blob(data=msg, mime_type=INPUT_AUDIO_MIME)
+                )
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:
+            classified = LiveErrorClassifier.classify(e)
+            if classified.is_recoverable:
+                self.session_mgr.log(f"Send loop caught recoverable disconnect ({classified.category.value})")
+                self._session_stop_event.set()
+                raise LiveSessionRecoveryRequired(classified) from e
+            raise
 
     async def _listen_audio(self):
         print("[MJ] 🎤 Mic started")
@@ -1648,14 +1784,21 @@ class MJLive:
         hot_frames = 0
 
         def queue_audio(data: bytes) -> None:
+            if self._session_stop_event.is_set() or not self.out_queue:
+                return
             try:
                 self.out_queue.put_nowait(data)
-            except asyncio.QueueFull:
+            except (asyncio.QueueFull, AttributeError):
                 pass
 
         def callback(indata, frames, time_info, status):
             nonlocal hot_frames
-            if self.ui.muted or self._phone_active:
+            if (
+                self.ui.muted
+                or self._phone_active
+                or is_emergency_stopped()
+                or self._session_stop_event.is_set()
+            ):
                 pre_roll.clear()
                 hot_frames = 0
                 return
@@ -1685,8 +1828,9 @@ class MJLive:
                 return
 
             # Speaker echo is normally a fraction of the original output level.
-            # Require sustained input above both ambient noise and echo reference.
-            threshold = _barge_in_threshold(self._ambient_rms, self._output_rms)
+            # Require sustained input above both ambient noise and echo reference with ECHO dynamics.
+            sensitivity = self.emotion.get_interruption_sensitivity() if hasattr(self.emotion, "get_interruption_sensitivity") else 0.65
+            threshold = _barge_in_threshold(self._ambient_rms, self._output_rms, sensitivity=sensitivity)
             hot_frames = hot_frames + 1 if mic_rms >= threshold else 0
             if hot_frames < 2:
                 return
@@ -1708,19 +1852,32 @@ class MJLive:
                 callback=callback,
             ):
                 print("[MJ] 🎤 Mic stream open")
-                while True:
+                while not self._session_stop_event.is_set():
                     await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             print(f"[MJ] ❌ Mic: {e}")
             raise
+        finally:
+            print("[MJ] 🎤 Mic stream closed")
 
     async def _receive_audio(self):
         print("[MJ] 👂 Recv started")
         out_buf, in_buf = [], []
 
         try:
-            while True:
+            while not self._session_stop_event.is_set():
                 async for response in self.session.receive():
+                    if self._session_stop_event.is_set():
+                        break
+
+                    # Capture session resumption handle if provided by Google server
+                    if hasattr(response, "session_resumption_update") and response.session_resumption_update:
+                        handle = getattr(response.session_resumption_update, "handle", None)
+                        if handle:
+                            self.session_mgr.resumption_handle = handle
+                            self.session_mgr.log(f"Stored session resumption handle: {handle[:12]}...")
 
                     if response.data:
                         if self._interrupted:
@@ -1788,6 +1945,7 @@ class MJLive:
                                 await self._analyse_personality(full_in, allow_ai=False)
                                 self.ui.write_log(f"You: {full_in}")
                                 self._session_log.append(f"User: {full_in}")
+                                add_conversation_message(self._conversation_id, "user", full_in)
                                 asyncio.create_task(self._learn_user_message(full_in))
                                 if self._dashboard:
                                     asyncio.create_task(self._dashboard.broadcast({
@@ -1806,6 +1964,9 @@ class MJLive:
                                     self._last_assistant_response = full_out
                                     self.ui.write_log(f"{self._asst_name}: {full_out}")
                                     self._session_log.append(f"{self._asst_name}: {full_out}")
+                                    add_conversation_message(self._conversation_id, "assistant", full_out)
+                                    if hasattr(self.emotion, "record_turn"):
+                                        self.emotion.record_turn("assistant", full_out)
                                     if self._dashboard:
                                         personality_payload = self.personality.frontend_payload()
                                         emotion_state = self.emotion.getCurrentEmotion()
@@ -1880,10 +2041,29 @@ class MJLive:
                         await self.session.send_tool_response(
                             function_responses=fn_responses
                         )
-        except Exception as e:
-            print(f"[MJ] ❌ Recv: {e}")
-            traceback.print_exc()
+
+                if not self._session_stop_event.is_set():
+                    self.session_mgr.log("Receive loop stream ended without explicit close error")
+                    break
+
+        except asyncio.CancelledError:
             raise
+        except BaseException as e:
+            classified = LiveErrorClassifier.classify(e)
+            if classified.is_recoverable:
+                self.session_mgr.log(
+                    f"Recv loop caught recoverable disconnection ({classified.category.value}, code={classified.close_code}): {classified.message}"
+                )
+                self._session_stop_event.set()
+                raise LiveSessionRecoveryRequired(classified) from e
+            else:
+                self.session_mgr.log(
+                    f"❌ Recv loop caught non-recoverable error ({classified.category.value}): {classified.message}"
+                )
+                self._session_stop_event.set()
+                raise
+        finally:
+            print("[MJ] 👂 Recv stopped")
 
     async def _play_audio(self):
         print("[MJ] 🔊 Play started")
@@ -1897,7 +2077,7 @@ class MJLive:
         stream.start()
 
         try:
-            while True:
+            while not self._session_stop_event.is_set():
                 try:
                     chunk = await asyncio.wait_for(
                         self.audio_in_queue.get(),
@@ -1914,6 +2094,8 @@ class MJLive:
                     continue
 
                 self.set_speaking(True)
+                if is_emergency_stopped() or self._session_stop_event.is_set():
+                    break
 
                 # Batch all immediately-available chunks into one write to reduce
                 # thread-pool round-trips (was one asyncio.to_thread per 50ms slice).
@@ -1934,13 +2116,19 @@ class MJLive:
                     await asyncio.to_thread(stream.write, styled_batch)
                 except (RuntimeError, asyncio.CancelledError):
                     break   # executor shutting down — exit cleanly
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             print(f"[MJ] ❌ Play: {e}")
             raise
         finally:
             self.set_speaking(False)
-            stream.stop()
-            stream.close()
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                pass
+            print("[MJ] 🔊 Play stream closed")
 
     # ── Morning briefing ────────────────────────────────────────────────────────
 
@@ -2110,6 +2298,7 @@ class MJLive:
             summary = f"Last conversation: {summary}"
 
         save_session_summary(summary, lang)
+        update_conversation_summary(self._conversation_id, summary)
         self._session_log = []    # reset only after persistence succeeds
 
     # ── System monitor ──────────────────────────────────────────────────────────
@@ -2243,13 +2432,15 @@ class MJLive:
     async def _relay_phone_audio(self) -> None:
         """Forward phone mic PCM chunks from dashboard queue into the Gemini Live session."""
         q = self._dashboard._phone_audio_queue
-        while True:
+        while not self._session_stop_event.is_set():
             try:
                 chunk = await asyncio.wait_for(q.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 # No audio for 1 s → phone mic inactive, give PC mic back
                 self._phone_active = False
                 continue
+            if self._session_stop_event.is_set():
+                break
             self._phone_active = True   # phone is streaming — silence PC mic
             if not self.ui.muted:
                 with self._speaking_lock:
@@ -2258,7 +2449,7 @@ class MJLive:
                     continue
                 try:
                     self.out_queue.put_nowait(chunk)
-                except asyncio.QueueFull:
+                except (asyncio.QueueFull, AttributeError):
                     pass
 
     def _on_phone_connected(self) -> None:
@@ -2301,125 +2492,137 @@ class MJLive:
             from dashboard.server import DashboardServer
             self._dashboard = DashboardServer()
             self._dashboard.set_connect_callback(self._on_phone_connected)
-            asyncio.create_task(self._dashboard.serve())
-            # Runs for the whole lifetime, not just inside an active session
-            asyncio.create_task(self._process_dashboard_commands())
+            t_dash = asyncio.create_task(self._dashboard.serve())
+            t_cmd = asyncio.create_task(self._process_dashboard_commands())
+            self._app_tasks.extend([t_dash, t_cmd])
         except Exception as e:
             print(f"[Dashboard] Disabled: {e}")
             self._dashboard = None
 
-        while True:
-            try:
-                print("[MJ] Connecting...")
-                self.ui.set_state("THINKING")
-                config = self._build_config()
+        # Start application-lifetime background monitors (Not killed on WebSocket 1011!)
+        self._app_tasks.append(asyncio.create_task(self._run_system_monitor()))
+        self._app_tasks.append(asyncio.create_task(self._run_background_monitor()))
+        self._app_tasks.append(asyncio.create_task(self._run_proactive_mode()))
+        self._app_tasks.append(asyncio.create_task(self._run_memory_maintenance()))
+        self._app_tasks.append(asyncio.create_task(self._run_emotion_decay()))
 
-                # Fresh client on every reconnect — avoids stale HTTP session state
-                client = genai.Client(
-                    api_key=_get_api_key(),
-                    http_options={"api_version": "v1beta"}
-                )
+        try:
+            while not self.session_mgr.is_shutting_down:
+                try:
+                    self.session_mgr.log("Connecting...")
+                    self.session_mgr._set_state(ConnectionState.CONNECTING, "Establishing live session")
+                    config = self._build_config()
 
-                async with (
-                    client.aio.live.connect(model=LIVE_MODEL, config=config) as session,
-                    asyncio.TaskGroup() as tg,
-                ):
-                    self.session          = session
-                    self.audio_in_queue   = asyncio.Queue()
-                    self.out_queue        = asyncio.Queue(maxsize=200)
-                    self._turn_done_event = asyncio.Event()
+                    # Provide session resumption handle if available
+                    if self.session_mgr.resumption_handle:
+                        config.session_resumption = types.SessionResumptionConfig(
+                            handle=self.session_mgr.resumption_handle,
+                            transparent=True,
+                        )
 
-                    # Reset transient state that must not carry over from a previous session
-                    self._pending_vision           = None
-                    self._vision_cam_active        = False
-                    self._vision_close_pending     = False
-                    self._vision_busy              = False
-                    self._vision_last_time         = 0.0
-                    self._interrupted              = False
-                    self._last_assistant_response  = ""
-
-                    print("[MJ] Connected.")
-                    self.ui.set_state("LISTENING")
-                    self.ui.write_log("SYS: MJ online.")
-                    await self._publish_emotion()
-                    await self._publish_personality()
-
-                    if self._dashboard:
-                        await self._dashboard.broadcast({"type": "status", "state": "active"})
-
-                    tg.create_task(self._send_realtime())
-                    tg.create_task(self._listen_audio())
-                    tg.create_task(self._receive_audio())
-                    tg.create_task(self._play_audio())
-                    tg.create_task(self._run_system_monitor())
-                    tg.create_task(self._run_background_monitor())
-                    tg.create_task(self._run_proactive_mode())
-                    tg.create_task(self._run_memory_maintenance())
-                    tg.create_task(self._run_emotion_decay())
-                    if self._dashboard:
-                        tg.create_task(self._relay_phone_audio())
-
-                    # Morning briefing — fires once per process launch (if enabled)
-                    if not self._briefing_sent and get_brief_enabled():
-                        self._briefing_sent = True
-                        tg.create_task(self._send_startup_briefing())
-
-            except KeyboardInterrupt:
-                raise
-            except SystemExit:
-                raise
-            except BaseException as e:
-                # Catches both Exception and BaseExceptionGroup (Python 3.11+
-                # TaskGroup raises BaseExceptionGroup when tasks are cancelled
-                # externally, which `except Exception` would miss, letting the
-                # exception escape the while-loop and causing asyncio.run() to
-                # start shutdown — resulting in "executor after shutdown" errors).
-                err_str = str(e)
-                print(f"[MJ] Error ({type(e).__name__}): {e}")
-                traceback.print_exc()
-
-                # Invalid API key — stop hammering the API, prompt re-configuration
-                if "API key not valid" in err_str or "1007" in err_str:
-                    self.ui.write_log("ERR: API key invalid — please re-enter your key.")
-                    self.ui.set_state("SLEEPING")
-                    self.ui.prompt_reconfig()
-                    while not self.ui._win._ready:
-                        await asyncio.sleep(1)
-                    print("[MJ] New API key saved — reconnecting...")
-                    _conn_backoff = 3
-                    continue
-
-                # Network / timeout errors — log clearly and back off
-                is_net_err = any(k in err_str for k in (
-                    "TimeoutError", "timed out", "getaddrinfo", "CancelledError",
-                    "ConnectionRefusedError", "OSError", "Cannot connect",
-                ))
-                if is_net_err:
-                    _conn_backoff = min(getattr(self, "_conn_backoff", 3) * 2, 60)
-                    self._conn_backoff = _conn_backoff
-                    self.ui.write_log(
-                        f"NET: Connection failed — retrying in {_conn_backoff}s. "
-                        "(Check internet / API key)"
+                    # Fresh client on every reconnect — avoids stale HTTP session state
+                    client = genai.Client(
+                        api_key=_get_api_key(),
+                        http_options={"api_version": "v1beta"}
                     )
-                else:
-                    self._conn_backoff = 3
-            finally:
-                self.session = None
-                # Only save if there was a real conversation (≥3 turns)
-                if len(self._session_log) >= 3:
-                    asyncio.create_task(self._save_session_summary())
 
-            self.set_speaking(False)
-            self.ui.set_state("SLEEPING")
+                    async with (
+                        client.aio.live.connect(model=LIVE_MODEL, config=config) as session,
+                        asyncio.TaskGroup() as tg,
+                    ):
+                        self.session          = session
+                        self._session_stop_event.clear()
 
-            if self._dashboard:
-                await self._dashboard.broadcast({"type": "status", "state": "sleeping"})
+                        # Reset transient state and drain queues to eliminate stale audio
+                        LiveSessionManager.drain_queue(self.audio_in_queue)
+                        LiveSessionManager.drain_queue(self.out_queue)
+                        self.audio_in_queue   = asyncio.Queue()
+                        self.out_queue        = asyncio.Queue(maxsize=200)
+                        self._turn_done_event = asyncio.Event()
 
-            delay = getattr(self, "_conn_backoff", 3)
-            print(f"[MJ] Reconnecting in {delay}s...")
-            await asyncio.sleep(delay)
+                        self._pending_vision           = None
+                        self._vision_cam_active        = False
+                        self._vision_close_pending     = False
+                        self._vision_busy              = False
+                        self._vision_last_time         = 0.0
+                        self._interrupted              = False
+                        self._last_assistant_response  = ""
+                        self._voice_interrupt_pending  = False
+
+                        self.session_mgr.on_connection_established(session)
+                        self.ui.write_log("SYS: MJ online.")
+                        await self._publish_emotion()
+                        await self._publish_personality()
+
+                        # Session-scoped tasks (Audio IO and streaming only)
+                        tg.create_task(self._send_realtime())
+                        tg.create_task(self._listen_audio())
+                        tg.create_task(self._receive_audio())
+                        tg.create_task(self._play_audio())
+                        if self._dashboard:
+                            tg.create_task(self._relay_phone_audio())
+
+                        # Morning briefing — fires once per process launch (if enabled)
+                        if not self._briefing_sent and get_brief_enabled():
+                            self._briefing_sent = True
+                            tg.create_task(self._send_startup_briefing())
+
+                except (KeyboardInterrupt, SystemExit):
+                    self.session_mgr.request_shutdown()
+                    raise
+
+                except BaseException as e:
+                    classified = LiveErrorClassifier.classify(e)
+                    if classified.category == ErrorCategory.AUTHENTICATION_ERROR:
+                        self.ui.write_log("ERR: API key invalid — please re-enter your key.")
+                        self.ui.set_state("SLEEPING")
+                        self.ui.prompt_reconfig()
+                        while not self.ui._win._ready:
+                            await asyncio.sleep(1)
+                        print("[MJ] New API key saved — reconnecting...")
+                        self.session_mgr.retry_count = 0
+                        continue
+                    elif classified.category == ErrorCategory.PROGRAMMING_ERROR:
+                        print(f"[MJ] Critical programming error: {classified.message}")
+                        traceback.print_exc()
+                        await asyncio.sleep(3.0)
+                    elif classified.is_recoverable:
+                        _, delay = self.session_mgr.on_connection_lost(classified.underlying_exception)
+                        self.ui.write_log(
+                            f"NET: Disconnected ({classified.category.value}) — reconnecting in {delay:.1f}s."
+                        )
+                        can_reconnect = await self.session_mgr.prepare_for_reconnect(delay)
+                        if not can_reconnect:
+                            break
+                    else:
+                        print(f"[MJ] Non-recoverable error: {classified.message}")
+                        await asyncio.sleep(3.0)
+
+                finally:
+                    self._session_stop_event.set()
+                    self.session = None
+                    self.set_speaking(False)
+                    await self.session_mgr.dispose_current_session()
+                    LiveSessionManager.drain_queue(self.audio_in_queue)
+                    LiveSessionManager.drain_queue(self.out_queue)
+                    if len(self._session_log) >= 3:
+                        asyncio.create_task(self._save_session_summary())
+
+        finally:
+            self.session_mgr.request_shutdown()
+            for t in self._app_tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*self._app_tasks, return_exceptions=True)
+            self.session_mgr.log("All application tasks cleanly terminated.")
 
 def main():
+    try:
+        from mjx.security import migrate_from_config
+        migrate_from_config(API_CONFIG_PATH)
+    except Exception as exc:
+        print(f"[MJ] ⚠️ Credential migration notice: {exc}")
+
     configured_face = BASE_DIR / "config" / "mj.png"
     if not configured_face.exists():
         configured_face = BASE_DIR / "config" / "mj.png"

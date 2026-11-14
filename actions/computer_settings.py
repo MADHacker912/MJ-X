@@ -35,6 +35,13 @@ def _get_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
     path = _get_base_dir() / "config" / "api_keys.json"
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]

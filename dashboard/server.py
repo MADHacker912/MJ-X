@@ -11,6 +11,7 @@ Install deps:  pip install fastapi "uvicorn[standard]" cryptography
 import asyncio
 import base64
 import hashlib
+import os
 import re
 import secrets
 import socket
@@ -60,9 +61,17 @@ UPLOADS_DIR = _make_uploads_dir()
 
 def _get_gemini_key() -> str | None:
     try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
+    try:
         import json as _json
         with open(BASE_DIR / "config" / "api_keys.json", "r", encoding="utf-8") as f:
-            return _json.load(f).get("gemini_api_key")
+            val = _json.load(f).get("gemini_api_key")
+            return val if val != "USE_OS_VAULT" else None
     except Exception:
         return None
 
@@ -368,8 +377,10 @@ def _read(name: str) -> str:
 
 class DashboardServer:
 
-    def __init__(self):
+    def __init__(self, host: str | None = None):
         self._ip                          = _local_ip()
+        env_host = os.environ.get("MJ_DASHBOARD_HOST")
+        self.host                         = host or env_host or "127.0.0.1"
         self._tokens: set[str]            = set()
         self._token_keys: dict[str, str]  = {}   # auth_token → session_key
         self._aes_cache:  dict[str, bytes]= {}   # session_key → AES bytes
@@ -402,13 +413,15 @@ class DashboardServer:
 
     def get_url(self) -> str:
         proto = "https" if self._ssl_enabled() else "http"
-        return f"{proto}://{self._ip}:{PORT}"
+        host_str = "127.0.0.1" if self.host == "127.0.0.1" else self._ip
+        return f"{proto}://{host_str}:{PORT}"
 
     def get_manual_url(self) -> str:
         """URL for manual browser entry. When HTTPS active, points to alias port (also HTTPS)."""
+        host_str = "127.0.0.1" if self.host == "127.0.0.1" else self._ip
         if self._ssl_enabled():
-            return f"{self._ip}:{PORT + 1}"
-        return f"{self._ip}:{PORT}"
+            return f"{host_str}:{PORT + 1}"
+        return f"{host_str}:{PORT}"
 
     def _aes_key(self, session_key: str) -> bytes:
         if session_key not in self._aes_cache:
@@ -467,6 +480,17 @@ class DashboardServer:
         @app.get("/login", response_class=HTMLResponse)
         async def login_page():
             return HTMLResponse(self._login_html)
+
+        @app.get("/download/apk")
+        async def download_apk():
+            apk_path = BASE_DIR / "android" / "bin" / "MJ-X-Assistant.apk"
+            if apk_path.exists():
+                return FileResponse(
+                    str(apk_path),
+                    media_type="application/vnd.android.package-archive",
+                    filename="MJ-X-Assistant.apk"
+                )
+            return JSONResponse({"error": "APK not found. Run ./android/build_apk.sh first."}, status_code=404)
 
         @app.get("/", response_class=HTMLResponse)
         async def index():
@@ -603,6 +627,37 @@ class DashboardServer:
             if self._wake_callback:
                 self._wake_callback()
             return JSONResponse({"ok": True})
+
+        # ── Android Autonomous Phone Agent Integration ───────────────────────
+
+        @app.get("/api/phone/poll-action")
+        async def phone_poll_action():
+            try:
+                from actions.phone_controller import get_next_phone_command
+                cmd = get_next_phone_command()
+                return JSONResponse(cmd or {})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @app.post("/api/phone/action")
+        async def phone_queue_action(req: Request):
+            try:
+                from actions.phone_controller import queue_phone_command
+                body = await req.json()
+                queue_phone_command(body)
+                return JSONResponse({"ok": True, "queued": body})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @app.post("/api/phone/screen-report")
+        async def phone_screen_report(req: Request):
+            try:
+                from actions.phone_controller import update_screen_dump
+                body = await req.json()
+                update_screen_dump(body)
+                return JSONResponse({"ok": True})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
 
         # ── Phone mic real-time audio → Gemini Live ──────────────────────────
 
@@ -758,12 +813,14 @@ class DashboardServer:
         User types IP:8001 → Chrome tries https → self-signed cert warning → accept once → done."""
         ssl_key  = BASE_DIR / "config" / "certs" / "mj.key"
         ssl_cert = BASE_DIR / "config" / "certs" / "mj.crt"
-        asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT + 1)
+        if self.host != "127.0.0.1":
+            asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT + 1)
         cfg = uvicorn.Config(
-            self.app, host="0.0.0.0", port=PORT + 1, log_level="warning",
+            self.app, host=self.host, port=PORT + 1, log_level="warning",
             ssl_keyfile=str(ssl_key), ssl_certfile=str(ssl_cert),
         )
-        print(f"[Dashboard] Manual entry:  {self._ip}:{PORT + 1}  (type in browser, accept cert once)")
+        host_str = "127.0.0.1" if self.host == "127.0.0.1" else self._ip
+        print(f"[Dashboard] Manual entry:  {host_str}:{PORT + 1}  (type in browser, accept cert once)")
         await uvicorn.Server(cfg).serve()
 
     async def serve(self) -> None:
@@ -772,9 +829,11 @@ class DashboardServer:
             print("[Dashboard] Run:  pip install fastapi 'uvicorn[standard]' cryptography")
             return
 
-        # Firewall setup runs in a thread — uvicorn starts immediately,
-        # no waiting for UAC dialogs or subprocess timeouts.
-        asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT)
+        if self.host != "127.0.0.1":
+            print(f"[Dashboard] ⚠️ WARNING: Server bound to {self.host}. Remote LAN access is open.")
+            asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT)
+        else:
+            print("[Dashboard] 🔒 Localhost security active (bound to 127.0.0.1).")
 
         use_ssl  = self._ssl_enabled()
         ssl_key  = BASE_DIR / "config" / "certs" / "mj.key"
@@ -784,11 +843,12 @@ class DashboardServer:
             asyncio.create_task(self._serve_alias())
 
         cfg = uvicorn.Config(
-            self.app, host="0.0.0.0", port=PORT, log_level="warning",
+            self.app, host=self.host, port=PORT, log_level="warning",
             **({"ssl_keyfile": str(ssl_key), "ssl_certfile": str(ssl_cert)} if use_ssl else {}),
         )
 
         proto = "https" if use_ssl else "http"
-        print(f"[Dashboard] {proto}://{self._ip}:{PORT}")
+        host_str = "127.0.0.1" if self.host == "127.0.0.1" else self._ip
+        print(f"[Dashboard] {proto}://{host_str}:{PORT}")
         print("[Dashboard] Press 'Remote Control' in MJ UI to get the QR code.")
         await uvicorn.Server(cfg).serve()

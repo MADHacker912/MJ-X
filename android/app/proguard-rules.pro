@@ -1,0 +1,1 @@
+# MJ-X Proguard rules

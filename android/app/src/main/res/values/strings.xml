@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MJ-X Assistant</string>
+    <string name="accessibility_service_desc">Autonomous accessibility agent for MJ-X to perform gestures, tap buttons, read screen content, and automate phone tasks hands-free.</string>
+</resources>

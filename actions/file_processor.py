@@ -26,6 +26,13 @@ from pathlib import Path
 from datetime import datetime
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
     config_path = Path(__file__).resolve().parent.parent / "config" / "api_keys.json"
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
@@ -778,19 +785,73 @@ def _process_pptx(path: Path, action: str, params: dict, speak=None) -> str:
 
     return f"Unknown PPTX action: '{action}'. Try: summarize, extract_text, analyze"
 
+_PROHIBITED_DIRECTORIES = {
+    Path("/etc"), Path("/root"), Path("/sys"), Path("/proc"), Path("/boot"), Path("/dev"),
+    Path.home() / ".ssh", Path.home() / ".gnupg", Path.home() / ".aws",
+}
+
+_PROHIBITED_NAMES = {
+    ".vault_recovery.key", "mj.key", "id_rsa", "id_ed25519", "shadow", "passwd",
+}
+
+_WRITE_ACTIONS = {
+    "resize", "convert", "compress", "crop", "extract_pages", "to_word",
+    "to_pdf", "reformat", "fix", "trim", "extract_audio", "extract_frame",
+    "extract", "sort", "filter", "edit", "write", "overwrite",
+}
+
+def _validate_safe_path(target_path: Path) -> tuple[bool, str]:
+    try:
+        resolved = target_path.resolve()
+        if resolved.name in _PROHIBITED_NAMES:
+            return False, f"Access denied: Sensitive system/credential file '{resolved.name}' is protected."
+        for prohibited in _PROHIBITED_DIRECTORIES:
+            try:
+                if resolved == prohibited or resolved.is_relative_to(prohibited):
+                    return False, f"Access denied: Prohibited system path '{resolved}'."
+            except Exception:
+                pass
+        return True, ""
+    except Exception as exc:
+        return False, f"Invalid path resolution: {exc}"
+
 def file_processor(parameters: dict, player=None, speak=None) -> str:
     file_path_str = parameters.get("file_path", "").strip()
     if not file_path_str:
         return "No file path provided."
 
-    path = Path(file_path_str)
+    try:
+        path = Path(file_path_str).resolve()
+    except Exception as e:
+        return f"Invalid file path: {e}"
+
+    is_safe, reason = _validate_safe_path(path)
+    if not is_safe:
+        return f"Security Violation: {reason}"
+
     if not path.exists():
         return f"File not found: {file_path_str}"
     if not path.is_file():
         return f"Path is not a file: {file_path_str}"
 
-    file_type   = _detect_type(path)
     action      = (parameters.get("action") or "").lower().strip()
+    is_write    = action in _WRITE_ACTIONS
+
+    # Enforce permission ledger
+    try:
+        from mjx.security.permissions import check_permission, PermissionCategory
+        req_category = PermissionCategory.FILE_WRITE if is_write else PermissionCategory.FILE_READ
+        if not check_permission(
+            req_category,
+            action=action or ("write" if is_write else "read"),
+            target=str(path),
+            reason=f"FileProcessor {action or 'access'} on {path.name}",
+        ):
+            return f"Permission Denied: Operation '{action or 'access'}' on '{path.name}' rejected by security policy ({req_category.value})."
+    except Exception as e:
+        return f"Permission Check Failed: {e}"
+
+    file_type   = _detect_type(path)
     instruction = parameters.get("instruction", "")
     params      = {**parameters, "instruction": instruction}
 

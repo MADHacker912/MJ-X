@@ -47,8 +47,16 @@ class AutonomousLearner:
 
     def _get_api_key(self) -> str | None:
         try:
+            from mjx.security import get_api_key
+            key = get_api_key("gemini_api_key")
+            if key:
+                return key
+        except Exception:
+            pass
+        try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                return json.load(f).get("gemini_api_key")
+                val = json.load(f).get("gemini_api_key")
+                return val if val != "USE_OS_VAULT" else None
         except Exception:
             return None
 

@@ -68,9 +68,16 @@ def _save_config_key(key: str, value) -> None:
 
 
 def _get_api_key() -> str:
+    try:
+        from mjx.security import get_api_key
+        key = get_api_key("gemini_api_key")
+        if key:
+            return key
+    except Exception:
+        pass
     key = _load_config().get("gemini_api_key", "")
-    if not key:
-        raise RuntimeError("gemini_api_key not found in config.")
+    if not key or key == "USE_OS_VAULT":
+        raise RuntimeError("gemini_api_key not found in config or vault.")
     return key
 
 
@@ -180,6 +187,14 @@ def _capture_screen_wayland() -> Optional[bytes]:
 
 
 def _capture_screen() -> tuple[bytes, str]:
+    try:
+        from mjx.security.permissions import check_permission, PermissionCategory
+        if not check_permission(PermissionCategory.SCREEN_CAPTURE, "screen_capture"):
+            print("[Vision] ⚠️ Screen capture denied by permission policy.")
+            raise PermissionError("Screen capture blocked by security policy.")
+    except (ImportError, ModuleNotFoundError):
+        pass
+
     is_linux_wayland = (
         platform.system().lower() == "linux"
         and os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
@@ -384,6 +399,14 @@ def take_photo(player=None) -> str:
 
 
 def _capture_camera(save_to_disk: bool = False) -> tuple[bytes, str]:
+    try:
+        from mjx.security.permissions import check_permission, PermissionCategory
+        if not check_permission(PermissionCategory.CAMERA_ACCESS, "camera_capture"):
+            print("[Vision] ⚠️ Camera access denied by permission policy.")
+            raise PermissionError("Camera capture blocked by security policy.")
+    except (ImportError, ModuleNotFoundError):
+        pass
+
     if not _CV2:
         raise RuntimeError("OpenCV (cv2) is not installed. Run: pip install opencv-python")
 

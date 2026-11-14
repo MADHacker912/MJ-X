@@ -216,10 +216,18 @@ def summarize_recent_whatsapp_messages(contact_query: Optional[str] = None, limi
 
     # Use Gemini to summarize
     try:
-        if API_KEYS_FILE.exists():
+        key = None
+        try:
+            from mjx.security import get_api_key
+            key = get_api_key("gemini_api_key")
+        except Exception:
+            pass
+        if not key and API_KEYS_FILE.exists():
             with open(API_KEYS_FILE, "r", encoding="utf-8") as f:
-                key = json.load(f).get("gemini_api_key")
-            if key:
+                val = json.load(f).get("gemini_api_key")
+                if val != "USE_OS_VAULT":
+                    key = val
+        if key:
                 from google import genai
                 from google.genai import types
                 client = genai.Client(api_key=key)
@@ -340,8 +348,17 @@ class WhatsAppBridge:
 
         # 1. Try Gemini 3.6 Flash via google-genai SDK
         try:
-            with open(API_KEYS_FILE, "r", encoding="utf-8") as f:
-                key = json.load(f).get("gemini_api_key")
+            key = None
+            try:
+                from mjx.security import get_api_key
+                key = get_api_key("gemini_api_key")
+            except Exception:
+                pass
+            if not key and API_KEYS_FILE.exists():
+                with open(API_KEYS_FILE, "r", encoding="utf-8") as f:
+                    val = json.load(f).get("gemini_api_key")
+                    if val != "USE_OS_VAULT":
+                        key = val
             if key:
                 from google import genai
                 from google.genai import types
