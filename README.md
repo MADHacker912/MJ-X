@@ -11,6 +11,21 @@
 [![Security](https://img.shields.io/badge/Security-OS%20Vault%20%7C%20Zero%20Secrets%20Leaked-red?style=for-the-badge&logo=security&logoColor=white)](https://owasp.org)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Desktop%20%7C%20Android-blue?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/MADHacker912/MJ-X)
 
+<br/>
+
+<div align="center">
+  <a href="https://www.producthunt.com/products/mj-x?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed" target="_blank" rel="noopener">
+    <img alt="MJ-X on Product Hunt" src="https://ph-files.imgix.net/45135851-a6b7-4fb2-a64b-1cdea4f3d649.png?auto=compress,format&amp;codec=mozjpeg&amp;cs=strip&amp;fit=crop&amp;h=80&amp;w=80" width="64" height="64" style="border-radius: 12px;" />
+  </a>
+  <h3><a href="https://www.producthunt.com/products/mj-x?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed" target="_blank" rel="noopener">MJ-X on Product Hunt</a></h3>
+  <p><i>Real-time duplex voice, memory &amp; desktop co-pilot</i></p>
+  <a href="https://www.producthunt.com/products/mj-x?embed=true&amp;utm_source=embed&amp;utm_medium=post_embed" target="_blank" rel="noopener">
+    <img src="https://img.shields.io/badge/Product_Hunt-Check_it_out_→-FF6154?style=for-the-badge&logo=producthunt&logoColor=white" alt="Check it out on Product Hunt" />
+  </a>
+</div>
+
+<br/>
+
 ---
 
 ## 🌟 What is MJ?
