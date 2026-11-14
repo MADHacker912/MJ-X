@@ -68,3 +68,13 @@ What's the one feature you wish your desktop AI assistant had? I'd love your fee
 - **Repository**: [https://github.com/MADHacker912/MJ-X](https://github.com/MADHacker912/MJ-X)
 - **Logo**: `android/app/src/main/res/drawable/mj_logo.png`
 - **Screenshots / Visuals**: Included in repository and HUD PyQt6 interface.
+
+---
+
+## 6. Launch Status & Scheduling Record
+- **Submission Date:** November 14, 2026
+- **Status:** **Successfully Scheduled**
+- **Draft URL:** [https://www.producthunt.com/posts/new/I7CVDG5Y6O2KS7C52YHXR4LTI4DRUVE25G](https://www.producthunt.com/posts/new/I7CVDG5Y6O2KS7C52YHXR4LTI4DRUVE25G)
+- **Maker Account:** Saksham Gupta ([@saksham_gupta22](https://www.producthunt.com/@saksham_gupta22))
+- **Verified Role:** Maker (`I made this`)
+- **Tags Attached:** `Artificial Intelligence`, `Developer Tools`, `Productivity`
